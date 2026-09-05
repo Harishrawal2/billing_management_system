@@ -221,6 +221,15 @@
           <!-- Modern Filter & Search Toolbar -->
           <div class="filter-toolbar">
             <div class="filter-left">
+              <div class="search-wrapper" id="invoice-search-wrapper">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" id="invoice-search-input" class="clean-search-input" placeholder="Search invoice #, client, amount..." autocomplete="off">
+                <button type="button" id="invoice-search-clear" class="search-clear-btn" onclick="clearInvoiceSearch()" title="Clear search">
+                  <i class="fas fa-times-circle"></i>
+                </button>
+                <kbd class="search-shortcut" id="invoice-search-kbd" title="Press / to search">/</kbd>
+              </div>
+
               <div class="tabs-nav">
                 <button class="tab-btn active" data-status="ALL" onclick="filterInvoices('ALL')">All</button>
                 <button class="tab-btn" data-status="SENT" onclick="filterInvoices('SENT')">Sent</button>
@@ -234,17 +243,8 @@
             <div class="filter-right">
               <span id="invoice-count-pill" class="results-count-pill">0 invoices</span>
 
-              <div class="search-wrapper">
-                <i class="fas fa-search search-icon"></i>
-                <input type="text" id="invoice-search-input" class="clean-search-input" placeholder="Search invoice #, client, or company..." autocomplete="off">
-                <button type="button" id="invoice-search-clear" class="search-clear-btn" onclick="clearInvoiceSearch()" title="Clear search" style="display: none;">
-                  <i class="fas fa-times-circle"></i>
-                </button>
-                <kbd class="search-shortcut" id="invoice-search-kbd" title="Press / to search">/</kbd>
-              </div>
-
               <button class="btn btn-secondary btn-sm" onclick="exportInvoicesToCSV()" title="Export Invoices as CSV">
-                <i class="fas fa-file-export"></i> <span>Export</span>
+                <i class="fas fa-file-export"></i> <span>Export CSV</span>
               </button>
             </div>
           </div>
@@ -276,12 +276,13 @@
         <div class="clean-card">
           <div class="filter-toolbar">
             <div class="filter-left">
-              <div class="search-wrapper">
+              <div class="search-wrapper" id="client-search-wrapper">
                 <i class="fas fa-search search-icon"></i>
                 <input type="text" id="client-search-input" class="clean-search-input" placeholder="Search client name, company, email..." autocomplete="off">
-                <button type="button" id="client-search-clear" class="search-clear-btn" onclick="clearClientSearch()" title="Clear search" style="display: none;">
+                <button type="button" id="client-search-clear" class="search-clear-btn" onclick="clearClientSearch()" title="Clear search">
                   <i class="fas fa-times-circle"></i>
                 </button>
+                <kbd class="search-shortcut" title="Press / to search">/</kbd>
               </div>
               <span id="client-count-pill" class="results-count-pill">0 clients</span>
             </div>
@@ -319,12 +320,13 @@
         <div class="clean-card">
           <div class="filter-toolbar">
             <div class="filter-left">
-              <div class="search-wrapper">
+              <div class="search-wrapper" id="product-search-wrapper">
                 <i class="fas fa-search search-icon"></i>
                 <input type="text" id="product-search-input" class="clean-search-input" placeholder="Search products, services, SKU..." autocomplete="off">
-                <button type="button" id="product-search-clear" class="search-clear-btn" onclick="clearProductSearch()" title="Clear search" style="display: none;">
+                <button type="button" id="product-search-clear" class="search-clear-btn" onclick="clearProductSearch()" title="Clear search">
                   <i class="fas fa-times-circle"></i>
                 </button>
+                <kbd class="search-shortcut" title="Press / to search">/</kbd>
               </div>
               <span id="product-count-pill" class="results-count-pill">0 items</span>
             </div>
@@ -359,9 +361,24 @@
       <!-- ================= 5. PAYMENTS VIEW ================= -->
       <section id="view-payments" class="view-section">
         <div class="clean-card">
-          <div style="margin-bottom: 18px; display:flex; justify-content:space-between; align-items:center;">
-            <h3 style="font-size:15px; font-weight:600;">Payment Transactions Ledger</h3>
-            <span style="font-size:13px; color:var(--text-muted);">Real-time settlement history</span>
+          <div class="filter-toolbar">
+            <div class="filter-left">
+              <div class="search-wrapper" id="payment-search-wrapper">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" id="payment-search-input" class="clean-search-input" placeholder="Search payments by invoice #, client, ref..." autocomplete="off">
+                <button type="button" id="payment-search-clear" class="search-clear-btn" onclick="clearPaymentSearch()" title="Clear search">
+                  <i class="fas fa-times-circle"></i>
+                </button>
+                <kbd class="search-shortcut" title="Press / to search">/</kbd>
+              </div>
+              <span id="payment-count-pill" class="results-count-pill">0 payments</span>
+            </div>
+
+            <div class="filter-right">
+              <button class="btn btn-secondary btn-sm" onclick="exportPaymentsToCSV()" title="Export Payments as CSV">
+                <i class="fas fa-file-export"></i> <span>Export CSV</span>
+              </button>
+            </div>
           </div>
 
           <div class="table-responsive">

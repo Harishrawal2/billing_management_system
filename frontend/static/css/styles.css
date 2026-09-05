@@ -617,12 +617,20 @@ select.input-field, .input-select {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 18px;
+  margin-bottom: 20px;
 }
 
-.filter-left, .filter-right {
+.filter-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.filter-right {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -633,7 +641,8 @@ select.input-field, .input-select {
   position: relative;
   display: flex;
   align-items: center;
-  width: 340px;
+  width: 320px;
+  min-width: 220px;
   max-width: 100%;
 }
 
@@ -644,19 +653,21 @@ select.input-field, .input-select {
   font-size: 13px;
   pointer-events: none;
   transition: color 0.15s ease;
+  z-index: 1;
 }
 
 .clean-search-input {
   width: 100%;
   height: 38px;
-  padding: 0 44px 0 38px;
-  background-color: var(--bg-input);
-  border: 1px solid var(--border-input);
+  padding: 0 40px 0 36px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-main);
   font-size: 13px;
   font-family: inherit;
   transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .clean-search-input:hover {
@@ -667,7 +678,7 @@ select.input-field, .input-select {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-  background-color: #ffffff;
+  background-color: var(--bg-card);
 }
 
 [data-theme="dark"] .clean-search-input:focus {
@@ -680,28 +691,30 @@ select.input-field, .input-select {
 
 .search-clear-btn {
   position: absolute;
-  right: 12px;
+  right: 8px;
   background: none;
   border: none;
   color: var(--text-light);
   cursor: pointer;
-  padding: 3px;
-  font-size: 14px;
-  display: flex;
+  padding: 4px 6px;
+  font-size: 13px;
+  display: none;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
-  transition: color 0.15s ease;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  z-index: 2;
 }
 
 .search-clear-btn:hover {
-  color: var(--text-main);
+  color: var(--danger);
+  background-color: rgba(220, 38, 38, 0.08);
 }
 
 .search-shortcut {
   position: absolute;
-  right: 12px;
-  padding: 2px 7px;
+  right: 9px;
+  padding: 2px 6px;
   border: 1px solid var(--border-color);
   background: var(--bg-muted);
   border-radius: 4px;
@@ -711,6 +724,18 @@ select.input-field, .input-select {
   color: var(--text-muted);
   pointer-events: none;
   box-shadow: 0 1px 1px rgba(0,0,0,0.04);
+  transition: opacity 0.15s ease;
+  z-index: 1;
+}
+
+/* When search input has value, show clear button and hide shortcut badge */
+.search-wrapper.has-value .search-clear-btn {
+  display: flex !important;
+}
+
+.search-wrapper.has-value .search-shortcut,
+.search-wrapper:focus-within .search-shortcut {
+  display: none;
 }
 
 .results-count-pill {
@@ -721,6 +746,19 @@ select.input-field, .input-select {
   border-radius: var(--radius-full);
   border: 1px solid var(--border-color);
   font-weight: 500;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.results-count-pill::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--primary);
 }
 
 /* Tabs */

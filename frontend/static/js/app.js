@@ -336,9 +336,26 @@ function renderRecentInvoices(invoices) {
    ========================================================================== */
 function filterInvoices(statusFilter) {
   state.invoiceFilter = statusFilter;
-  document.querySelectorAll('.tab-btn').forEach(btn => {
+  document.querySelectorAll('#view-invoices .tab-btn').forEach(btn => {
     btn.classList.toggle('active', btn.getAttribute('data-status') === statusFilter);
   });
+  renderInvoicesTable();
+}
+
+function clearInvoiceSearch(resetTabs = false) {
+  const input = document.getElementById('invoice-search-input');
+  const wrapper = document.getElementById('invoice-search-wrapper');
+  if (input) {
+    input.value = '';
+    input.focus();
+  }
+  if (wrapper) wrapper.classList.remove('has-value');
+  if (resetTabs) {
+    state.invoiceFilter = 'ALL';
+    document.querySelectorAll('#view-invoices .tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-status') === 'ALL');
+    });
+  }
   renderInvoicesTable();
 }
 
@@ -346,28 +363,63 @@ function renderInvoicesTable() {
   const tbody = document.getElementById('invoices-table-tbody');
   if (!tbody) return;
 
-  const search = (document.getElementById('invoice-search-input')?.value || '').toLowerCase();
+  const searchInput = document.getElementById('invoice-search-input');
+  const search = (searchInput?.value || '').toLowerCase().trim();
+  const wrapper = document.getElementById('invoice-search-wrapper');
+  if (wrapper) {
+    wrapper.classList.toggle('has-value', search.length > 0);
+  }
   
-  let list = state.invoices;
+  let list = state.invoices || [];
+  const totalCount = list.length;
+
   if (state.invoiceFilter !== 'ALL') {
     list = list.filter(i => i.status === state.invoiceFilter);
   }
   if (search) {
     list = list.filter(i => 
-      i.invoice_number.toLowerCase().includes(search) ||
+      (i.invoice_number && i.invoice_number.toLowerCase().includes(search)) ||
       (i.client_name && i.client_name.toLowerCase().includes(search)) ||
-      (i.client_company && i.client_company.toLowerCase().includes(search))
+      (i.client_company && i.client_company.toLowerCase().includes(search)) ||
+      (i.status && i.status.toLowerCase().includes(search)) ||
+      String(i.total_amount).includes(search) ||
+      String(i.balance_due).includes(search)
     );
   }
 
+  // Update Count Pill
+  const countPill = document.getElementById('invoice-count-pill');
+  if (countPill) {
+    if (list.length === totalCount && state.invoiceFilter === 'ALL' && !search) {
+      countPill.textContent = `${totalCount} ${totalCount === 1 ? 'invoice' : 'invoices'}`;
+    } else {
+      countPill.textContent = `Showing ${list.length} of ${totalCount} invoices`;
+    }
+  }
+
   if (list.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">No invoices match your filter criteria.</td></tr>`;
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" style="text-align:center; padding: 48px 20px;">
+          <div style="max-width: 360px; margin: 0 auto; color: var(--text-muted);">
+            <div style="width: 44px; height: 44px; border-radius: 50%; background: var(--bg-muted); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px; font-size: 18px; color: var(--text-light);">
+              <i class="fas fa-search"></i>
+            </div>
+            <div style="font-weight: 600; font-size: 14px; color: var(--text-main); margin-bottom: 4px;">No invoices found</div>
+            <p style="font-size: 13px; margin-bottom: 16px; line-height: 1.4;">No invoices match your active search query or status filter.</p>
+            <button class="btn btn-secondary btn-sm" onclick="clearInvoiceSearch(true)">
+              <i class="fas fa-undo"></i> Reset Filters
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
     return;
   }
 
   tbody.innerHTML = list.map(inv => `
     <tr>
-      <td><strong>${inv.invoice_number}</strong></td>
+      <td><strong>${escapeHtml(inv.invoice_number)}</strong></td>
       <td>
         <div style="font-weight:600;">${escapeHtml(inv.client_name)}</div>
         <div style="font-size:12px;color:var(--text-muted);">${escapeHtml(inv.client_company || '')}</div>
@@ -401,25 +453,120 @@ function renderInvoicesTable() {
   `).join('');
 }
 
-/* ==========================================================================
-   CLIENTS VIEW
-   ========================================================================== */
-function renderClientsTable() {
-  const tbody = document.getElementById('clients-table-tbody');
-  if (!tbody) return;
-
-  const search = (document.getElementById('client-search-input')?.value || '').toLowerCase();
-  let list = state.clients;
+function exportInvoicesToCSV() {
+  const searchInput = document.getElementById('invoice-search-input');
+  const search = (searchInput?.value || '').toLowerCase().trim();
+  
+  let list = state.invoices || [];
+  if (state.invoiceFilter !== 'ALL') {
+    list = list.filter(i => i.status === state.invoiceFilter);
+  }
   if (search) {
-    list = list.filter(c => 
-      c.name.toLowerCase().includes(search) ||
-      (c.company && c.company.toLowerCase().includes(search)) ||
-      (c.email && c.email.toLowerCase().includes(search))
+    list = list.filter(i => 
+      (i.invoice_number && i.invoice_number.toLowerCase().includes(search)) ||
+      (i.client_name && i.client_name.toLowerCase().includes(search)) ||
+      (i.client_company && i.client_company.toLowerCase().includes(search)) ||
+      (i.status && i.status.toLowerCase().includes(search))
     );
   }
 
   if (list.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);">No clients found. Click "+ Add Client" to create one.</td></tr>`;
+    showToast({ title: 'Export Failed', message: 'No invoices available to export', type: 'warning' });
+    return;
+  }
+
+  const headers = ['Invoice #', 'Client Name', 'Company', 'Issue Date', 'Due Date', 'Total Amount', 'Balance Due', 'Status'];
+  const rows = list.map(i => [
+    `"${i.invoice_number || ''}"`,
+    `"${(i.client_name || '').replace(/"/g, '""')}"`,
+    `"${(i.client_company || '').replace(/"/g, '""')}"`,
+    `"${i.issue_date || ''}"`,
+    `"${i.due_date || ''}"`,
+    i.total_amount || 0,
+    i.balance_due || 0,
+    `"${i.status || ''}"`
+  ]);
+
+  const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+  downloadCSV(csvContent, `invoices_export_${new Date().toISOString().split('T')[0]}.csv`);
+
+  showToast({
+    title: 'Export Generated',
+    message: `Exported ${list.length} invoices as CSV file`,
+    type: 'info'
+  });
+}
+
+/* ==========================================================================
+   CLIENTS VIEW
+   ========================================================================== */
+function clearClientSearch() {
+  const input = document.getElementById('client-search-input');
+  const wrapper = document.getElementById('client-search-wrapper');
+  if (input) {
+    input.value = '';
+    input.focus();
+  }
+  if (wrapper) wrapper.classList.remove('has-value');
+  renderClientsTable();
+}
+
+function renderClientsTable() {
+  const tbody = document.getElementById('clients-table-tbody');
+  if (!tbody) return;
+
+  const searchInput = document.getElementById('client-search-input');
+  const search = (searchInput?.value || '').toLowerCase().trim();
+  const wrapper = document.getElementById('client-search-wrapper');
+  if (wrapper) {
+    wrapper.classList.toggle('has-value', search.length > 0);
+  }
+
+  let list = state.clients || [];
+  const totalCount = list.length;
+
+  if (search) {
+    list = list.filter(c => 
+      (c.name && c.name.toLowerCase().includes(search)) ||
+      (c.company && c.company.toLowerCase().includes(search)) ||
+      (c.email && c.email.toLowerCase().includes(search)) ||
+      (c.phone && c.phone.toLowerCase().includes(search))
+    );
+  }
+
+  // Update Count Pill
+  const countPill = document.getElementById('client-count-pill');
+  if (countPill) {
+    if (list.length === totalCount && !search) {
+      countPill.textContent = `${totalCount} ${totalCount === 1 ? 'client' : 'clients'}`;
+    } else {
+      countPill.textContent = `Showing ${list.length} of ${totalCount} clients`;
+    }
+  }
+
+  if (list.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align:center; padding: 48px 20px;">
+          <div style="max-width: 360px; margin: 0 auto; color: var(--text-muted);">
+            <div style="width: 44px; height: 44px; border-radius: 50%; background: var(--bg-muted); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px; font-size: 18px; color: var(--text-light);">
+              <i class="fas fa-users"></i>
+            </div>
+            <div style="font-weight: 600; font-size: 14px; color: var(--text-main); margin-bottom: 4px;">No clients found</div>
+            <p style="font-size: 13px; margin-bottom: 16px; line-height: 1.4;">${search ? 'No clients match your search query.' : 'Get started by creating your first client account.'}</p>
+            ${search ? `
+              <button class="btn btn-secondary btn-sm" onclick="clearClientSearch()">
+                <i class="fas fa-undo"></i> Clear Search
+              </button>
+            ` : `
+              <button class="btn btn-primary btn-sm" onclick="openModal('modal-client')">
+                <i class="fas fa-user-plus"></i> Add Client
+              </button>
+            `}
+          </div>
+        </td>
+      </tr>
+    `;
     return;
   }
 
@@ -461,22 +608,73 @@ function filterInvoicesByClient(clientId) {
 /* ==========================================================================
    PRODUCTS VIEW
    ========================================================================== */
+function clearProductSearch() {
+  const input = document.getElementById('product-search-input');
+  const wrapper = document.getElementById('product-search-wrapper');
+  if (input) {
+    input.value = '';
+    input.focus();
+  }
+  if (wrapper) wrapper.classList.remove('has-value');
+  renderProductsTable();
+}
+
 function renderProductsTable() {
   const tbody = document.getElementById('products-table-tbody');
   if (!tbody) return;
 
-  const search = (document.getElementById('product-search-input')?.value || '').toLowerCase();
-  let list = state.products;
+  const searchInput = document.getElementById('product-search-input');
+  const search = (searchInput?.value || '').toLowerCase().trim();
+  const wrapper = document.getElementById('product-search-wrapper');
+  if (wrapper) {
+    wrapper.classList.toggle('has-value', search.length > 0);
+  }
+
+  let list = state.products || [];
+  const totalCount = list.length;
+
   if (search) {
     list = list.filter(p => 
-      p.name.toLowerCase().includes(search) ||
+      (p.name && p.name.toLowerCase().includes(search)) ||
       (p.sku && p.sku.toLowerCase().includes(search)) ||
-      (p.description && p.description.toLowerCase().includes(search))
+      (p.description && p.description.toLowerCase().includes(search)) ||
+      (p.unit && p.unit.toLowerCase().includes(search))
     );
   }
 
+  // Update Count Pill
+  const countPill = document.getElementById('product-count-pill');
+  if (countPill) {
+    if (list.length === totalCount && !search) {
+      countPill.textContent = `${totalCount} ${totalCount === 1 ? 'item' : 'items'}`;
+    } else {
+      countPill.textContent = `Showing ${list.length} of ${totalCount} items`;
+    }
+  }
+
   if (list.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">No products or services found.</td></tr>`;
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center; padding: 48px 20px;">
+          <div style="max-width: 360px; margin: 0 auto; color: var(--text-muted);">
+            <div style="width: 44px; height: 44px; border-radius: 50%; background: var(--bg-muted); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px; font-size: 18px; color: var(--text-light);">
+              <i class="fas fa-boxes"></i>
+            </div>
+            <div style="font-weight: 600; font-size: 14px; color: var(--text-main); margin-bottom: 4px;">No products found</div>
+            <p style="font-size: 13px; margin-bottom: 16px; line-height: 1.4;">${search ? 'No catalog items match your search.' : 'Add your first product or billable service rate.'}</p>
+            ${search ? `
+              <button class="btn btn-secondary btn-sm" onclick="clearProductSearch()">
+                <i class="fas fa-undo"></i> Clear Search
+              </button>
+            ` : `
+              <button class="btn btn-primary btn-sm" onclick="openModal('modal-product')">
+                <i class="fas fa-plus"></i> Add Product
+              </button>
+            `}
+          </div>
+        </td>
+      </tr>
+    `;
     return;
   }
 
@@ -502,26 +700,137 @@ function renderProductsTable() {
 /* ==========================================================================
    PAYMENTS VIEW
    ========================================================================== */
+function clearPaymentSearch() {
+  const input = document.getElementById('payment-search-input');
+  const wrapper = document.getElementById('payment-search-wrapper');
+  if (input) {
+    input.value = '';
+    input.focus();
+  }
+  if (wrapper) wrapper.classList.remove('has-value');
+  renderPaymentsTable();
+}
+
 function renderPaymentsTable() {
   const tbody = document.getElementById('payments-table-tbody');
   if (!tbody) return;
 
-  if (state.payments.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);">No payments recorded yet.</td></tr>`;
+  const searchInput = document.getElementById('payment-search-input');
+  const search = (searchInput?.value || '').toLowerCase().trim();
+  const wrapper = document.getElementById('payment-search-wrapper');
+  if (wrapper) {
+    wrapper.classList.toggle('has-value', search.length > 0);
+  }
+
+  let list = state.payments || [];
+  const totalCount = list.length;
+
+  if (search) {
+    list = list.filter(p => 
+      (p.invoice_number && p.invoice_number.toLowerCase().includes(search)) ||
+      (p.client_name && p.client_name.toLowerCase().includes(search)) ||
+      (p.payment_method && p.payment_method.toLowerCase().includes(search)) ||
+      (p.reference_number && p.reference_number.toLowerCase().includes(search)) ||
+      (p.notes && p.notes.toLowerCase().includes(search)) ||
+      String(p.amount).includes(search)
+    );
+  }
+
+  // Update Count Pill
+  const countPill = document.getElementById('payment-count-pill');
+  if (countPill) {
+    if (list.length === totalCount && !search) {
+      countPill.textContent = `${totalCount} ${totalCount === 1 ? 'payment' : 'payments'}`;
+    } else {
+      countPill.textContent = `Showing ${list.length} of ${totalCount} payments`;
+    }
+  }
+
+  if (list.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align:center; padding: 48px 20px;">
+          <div style="max-width: 360px; margin: 0 auto; color: var(--text-muted);">
+            <div style="width: 44px; height: 44px; border-radius: 50%; background: var(--bg-muted); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px; font-size: 18px; color: var(--text-light);">
+              <i class="fas fa-credit-card"></i>
+            </div>
+            <div style="font-weight: 600; font-size: 14px; color: var(--text-main); margin-bottom: 4px;">No payments found</div>
+            <p style="font-size: 13px; margin-bottom: 16px; line-height: 1.4;">${search ? 'No payments match your search filter.' : 'Payments recorded against invoices will appear here.'}</p>
+            ${search ? `
+              <button class="btn btn-secondary btn-sm" onclick="clearPaymentSearch()">
+                <i class="fas fa-undo"></i> Clear Search
+              </button>
+            ` : ''}
+          </div>
+        </td>
+      </tr>
+    `;
     return;
   }
 
-  tbody.innerHTML = state.payments.map(pay => `
+  tbody.innerHTML = list.map(pay => `
     <tr>
       <td>${formatDate(pay.payment_date)}</td>
-      <td><strong>${pay.invoice_number}</strong></td>
+      <td><strong>${escapeHtml(pay.invoice_number)}</strong></td>
       <td>${escapeHtml(pay.client_name)}</td>
-      <td><span class="badge" style="background:var(--bg-muted);">${pay.payment_method.replace('_', ' ')}</span></td>
+      <td><span class="badge" style="background:var(--bg-muted);">${(pay.payment_method || '').replace('_', ' ')}</span></td>
       <td><code>${escapeHtml(pay.reference_number || '-')}</code></td>
       <td><span style="font-size:12px;color:var(--text-muted);">${escapeHtml(pay.notes || '-')}</span></td>
       <td style="color:var(--success-text);font-weight:700;text-align:right;">+${formatCurrency(pay.amount)}</td>
     </tr>
   `).join('');
+}
+
+function exportPaymentsToCSV() {
+  const searchInput = document.getElementById('payment-search-input');
+  const search = (searchInput?.value || '').toLowerCase().trim();
+
+  let list = state.payments || [];
+  if (search) {
+    list = list.filter(p => 
+      (p.invoice_number && p.invoice_number.toLowerCase().includes(search)) ||
+      (p.client_name && p.client_name.toLowerCase().includes(search)) ||
+      (p.payment_method && p.payment_method.toLowerCase().includes(search)) ||
+      (p.reference_number && p.reference_number.toLowerCase().includes(search))
+    );
+  }
+
+  if (list.length === 0) {
+    showToast({ title: 'Export Failed', message: 'No payments to export', type: 'warning' });
+    return;
+  }
+
+  const headers = ['Payment Date', 'Invoice #', 'Client Name', 'Method', 'Reference #', 'Notes', 'Amount'];
+  const rows = list.map(p => [
+    `"${p.payment_date || ''}"`,
+    `"${p.invoice_number || ''}"`,
+    `"${(p.client_name || '').replace(/"/g, '""')}"`,
+    `"${p.payment_method || ''}"`,
+    `"${p.reference_number || ''}"`,
+    `"${(p.notes || '').replace(/"/g, '""')}"`,
+    p.amount || 0
+  ]);
+
+  const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+  downloadCSV(csvContent, `payments_export_${new Date().toISOString().split('T')[0]}.csv`);
+
+  showToast({
+    title: 'Export Generated',
+    message: `Exported ${list.length} payments as CSV file`,
+    type: 'info'
+  });
+}
+
+function downloadCSV(csvContent, filename) {
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.setAttribute('download', filename);
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 /* ==========================================================================
@@ -1046,9 +1355,35 @@ function setupEventListeners() {
     });
   });
 
+  // Real-time reactive search inputs
   document.getElementById('invoice-search-input')?.addEventListener('input', renderInvoicesTable);
   document.getElementById('client-search-input')?.addEventListener('input', renderClientsTable);
   document.getElementById('product-search-input')?.addEventListener('input', renderProductsTable);
+  document.getElementById('payment-search-input')?.addEventListener('input', renderPaymentsTable);
+
+  // Global Keyboard Shortcut: Press '/' to focus active search bar
+  document.addEventListener('keydown', (e) => {
+    const isEditing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+    
+    if (e.key === '/' && !isEditing) {
+      let targetInput = null;
+      if (state.currentTab === 'invoices') targetInput = document.getElementById('invoice-search-input');
+      else if (state.currentTab === 'clients') targetInput = document.getElementById('client-search-input');
+      else if (state.currentTab === 'products') targetInput = document.getElementById('product-search-input');
+      else if (state.currentTab === 'payments') targetInput = document.getElementById('payment-search-input');
+
+      if (targetInput) {
+        e.preventDefault();
+        targetInput.focus();
+        targetInput.select();
+      }
+    } else if (e.key === 'Escape') {
+      const activeEl = document.activeElement;
+      if (activeEl && activeEl.classList?.contains('clean-search-input')) {
+        activeEl.blur();
+      }
+    }
+  });
 }
 
 /* ==========================================================================
