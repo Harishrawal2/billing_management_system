@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ settings.APP_NAME }} - Billing & Invoicing Management</title>
+  <meta name="description" content="Clean and professional Billing Management System built with FastAPI and PostgreSQL.">
+
+  <!-- Typography: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+  <!-- Clean UI Stylesheet -->
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+
+<div class="app-container">
+  <!-- SIDEBAR NAVIGATION -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="brand-icon">
+        <i class="fas fa-file-invoice"></i>
+      </div>
+      <div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div class="brand-title">{{ settings.APP_NAME }}</div>
+          <span class="brand-badge">Pro</span>
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted);">FastAPI & PostgreSQL</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#dashboard" class="nav-item active" data-view="dashboard">
+        <i class="fas fa-chart-pie"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="#invoices" class="nav-item" data-view="invoices">
+        <i class="fas fa-file-invoice"></i>
+        <span>Invoices</span>
+      </a>
+      <a href="#clients" class="nav-item" data-view="clients">
+        <i class="fas fa-users"></i>
+        <span>Clients</span>
+      </a>
+      <a href="#products" class="nav-item" data-view="products">
+        <i class="fas fa-box"></i>
+        <span>Products & Services</span>
+      </a>
+      <a href="#payments" class="nav-item" data-view="payments">
+        <i class="fas fa-receipt"></i>
+        <span>Payment History</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="openNewInvoiceModal()">
+        <i class="fas fa-plus"></i>
+        <span>Create Invoice</span>
+      </button>
+      <button class="btn btn-secondary btn-sm" style="width:100%; justify-content:center; gap:6px;" onclick="triggerDatabaseSeed()">
+        <i class="fas fa-database"></i> <span>Seed Demo Data</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN VIEWPORT -->
+  <main class="main-wrapper">
+    <!-- TOP HEADER -->
+    <header class="top-header">
+      <div class="page-title-box">
+        <h1 id="current-page-title">Financial Dashboard</h1>
+        <p id="current-page-sub">Overview of billing metrics, revenue, and active invoices</p>
+      </div>
+
+      <div class="header-actions">
+        <!-- Currency Picker -->
+        <div class="currency-selector-wrap" title="Select Display Currency">
+          <i class="fas fa-coins"></i>
+          <select id="app-currency-selector" class="currency-select" onchange="changeCurrency(this.value)">
+            <option value="₹" selected>INR (₹)</option>
+            <option value="$">USD ($)</option>
+            <option value="€">EUR (€)</option>
+            <option value="£">GBP (£)</option>
+            <option value="AED ">AED (د.إ)</option>
+            <option value="C$">CAD (C$)</option>
+            <option value="¥">JPY (¥)</option>
+          </select>
+        </div>
+
+        <!-- Theme Toggle -->
+        <button class="btn-icon" id="theme-toggle-btn" title="Toggle Clean Light/Dark Theme" onclick="toggleTheme()">
+          <i class="fas fa-moon" id="theme-icon"></i>
+        </button>
+
+        <!-- API Docs Link -->
+        <a href="/docs" target="_blank" class="btn btn-secondary btn-sm" title="Interactive Swagger API Documentation">
+          <i class="fas fa-code"></i> <span>API Docs</span>
+        </a>
+
+        <!-- Quick Create Button -->
+        <button class="btn btn-primary btn-sm" onclick="openNewInvoiceModal()">
+          <i class="fas fa-plus"></i>
+          <span>New Invoice</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- CONTENT SECTIONS CONTAINER -->
+    <div class="content-area">
+
+      <!-- ================= 1. DASHBOARD VIEW ================= -->
+      <section id="view-dashboard" class="view-section active">
+        <!-- KPI METRICS -->
+        <div class="kpi-grid">
+          <div class="clean-card kpi-card kpi-rev">
+            <div class="kpi-info">
+              <span>Total Revenue</span>
+              <h3 id="kpi-revenue">₹0.00</h3>
+              <div class="kpi-sub">Lifetime payments collected</div>
+            </div>
+            <div class="kpi-icon">
+              <i class="fas fa-arrow-down"></i>
+            </div>
+          </div>
+
+          <div class="clean-card kpi-card kpi-inv">
+            <div class="kpi-info">
+              <span>Total Invoiced</span>
+              <h3 id="kpi-invoiced">₹0.00</h3>
+              <div class="kpi-sub">Across all non-void billings</div>
+            </div>
+            <div class="kpi-icon">
+              <i class="fas fa-file-invoice"></i>
+            </div>
+          </div>
+
+          <div class="clean-card kpi-card kpi-due">
+            <div class="kpi-info">
+              <span>Outstanding Receivables</span>
+              <h3 id="kpi-due">₹0.00</h3>
+              <div class="kpi-sub">Awaiting client settlement</div>
+            </div>
+            <div class="kpi-icon">
+              <i class="fas fa-clock"></i>
+            </div>
+          </div>
+
+          <div class="clean-card kpi-card kpi-overdue">
+            <div class="kpi-info">
+              <span>Overdue Receivables</span>
+              <h3 id="kpi-overdue">₹0.00</h3>
+              <div class="kpi-sub">Passed payment due date</div>
+            </div>
+            <div class="kpi-icon">
+              <i class="fas fa-exclamation-circle"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- CHARTS SECTION -->
+        <div class="charts-grid">
+          <div class="clean-card">
+            <div class="chart-header">
+              <h3>Monthly Invoicing vs Collected Revenue</h3>
+              <span style="font-size: 12px; color: var(--text-muted);">Last 6 Months</span>
+            </div>
+            <div class="chart-container">
+              <canvas id="revenueChart"></canvas>
+            </div>
+          </div>
+
+          <div class="clean-card">
+            <div class="chart-header">
+              <h3>Invoice Status Distribution</h3>
+              <span style="font-size: 12px; color: var(--text-muted);">By Count</span>
+            </div>
+            <div class="chart-container">
+              <canvas id="statusChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- RECENT ACTIVITY TABLES -->
+        <div class="clean-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <h3 style="font-size: 15px; font-weight: 600;">Recent Invoices</h3>
+            <button class="btn btn-secondary btn-sm" onclick="switchView('invoices')">View All Invoices</button>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Invoice #</th>
+                  <th>Client</th>
+                  <th>Issue Date</th>
+                  <th>Total</th>
+                  <th>Status</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="recent-invoices-tbody">
+                <!-- Dynamically Populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 2. INVOICES VIEW ================= -->
+      <section id="view-invoices" class="view-section">
+        <div class="clean-card">
+          <!-- Modern Filter & Search Toolbar -->
+          <div class="filter-toolbar">
+            <div class="filter-left">
+              <div class="tabs-nav">
+                <button class="tab-btn active" data-status="ALL" onclick="filterInvoices('ALL')">All</button>
+                <button class="tab-btn" data-status="SENT" onclick="filterInvoices('SENT')">Sent</button>
+                <button class="tab-btn" data-status="PARTIAL" onclick="filterInvoices('PARTIAL')">Partial</button>
+                <button class="tab-btn" data-status="PAID" onclick="filterInvoices('PAID')">Paid</button>
+                <button class="tab-btn" data-status="OVERDUE" onclick="filterInvoices('OVERDUE')">Overdue</button>
+                <button class="tab-btn" data-status="DRAFT" onclick="filterInvoices('DRAFT')">Draft</button>
+              </div>
+            </div>
+
+            <div class="filter-right">
+              <span id="invoice-count-pill" class="results-count-pill">0 invoices</span>
+
+              <div class="search-wrapper">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" id="invoice-search-input" class="clean-search-input" placeholder="Search invoice #, client, or company..." autocomplete="off">
+                <button type="button" id="invoice-search-clear" class="search-clear-btn" onclick="clearInvoiceSearch()" title="Clear search" style="display: none;">
+                  <i class="fas fa-times-circle"></i>
+                </button>
+                <kbd class="search-shortcut" id="invoice-search-kbd" title="Press / to search">/</kbd>
+              </div>
+
+              <button class="btn btn-secondary btn-sm" onclick="exportInvoicesToCSV()" title="Export Invoices as CSV">
+                <i class="fas fa-file-export"></i> <span>Export</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Invoice #</th>
+                  <th>Client</th>
+                  <th>Issued</th>
+                  <th>Due Date</th>
+                  <th>Total</th>
+                  <th>Balance Due</th>
+                  <th>Status</th>
+                  <th style="text-align: right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="invoices-table-tbody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 3. CLIENTS VIEW ================= -->
+      <section id="view-clients" class="view-section">
+        <div class="clean-card">
+          <div class="filter-toolbar">
+            <div class="filter-left">
+              <div class="search-wrapper">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" id="client-search-input" class="clean-search-input" placeholder="Search client name, company, email..." autocomplete="off">
+                <button type="button" id="client-search-clear" class="search-clear-btn" onclick="clearClientSearch()" title="Clear search" style="display: none;">
+                  <i class="fas fa-times-circle"></i>
+                </button>
+              </div>
+              <span id="client-count-pill" class="results-count-pill">0 clients</span>
+            </div>
+
+            <div class="filter-right">
+              <button class="btn btn-primary" onclick="openModal('modal-client')">
+                <i class="fas fa-user-plus"></i> <span>Add Client</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Client / Company</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Total Invoiced</th>
+                  <th>Paid</th>
+                  <th>Balance Due</th>
+                  <th style="text-align: right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="clients-table-tbody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 4. PRODUCTS & SERVICES VIEW ================= -->
+      <section id="view-products" class="view-section">
+        <div class="clean-card">
+          <div class="filter-toolbar">
+            <div class="filter-left">
+              <div class="search-wrapper">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" id="product-search-input" class="clean-search-input" placeholder="Search products, services, SKU..." autocomplete="off">
+                <button type="button" id="product-search-clear" class="search-clear-btn" onclick="clearProductSearch()" title="Clear search" style="display: none;">
+                  <i class="fas fa-times-circle"></i>
+                </button>
+              </div>
+              <span id="product-count-pill" class="results-count-pill">0 items</span>
+            </div>
+
+            <div class="filter-right">
+              <button class="btn btn-primary" onclick="openModal('modal-product')">
+                <i class="fas fa-plus"></i> <span>Add Product / Service</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Name / Description</th>
+                  <th>Billing Unit</th>
+                  <th>Unit Price</th>
+                  <th>Tax Rate</th>
+                  <th style="text-align: right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="products-table-tbody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 5. PAYMENTS VIEW ================= -->
+      <section id="view-payments" class="view-section">
+        <div class="clean-card">
+          <div style="margin-bottom: 18px; display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="font-size:15px; font-weight:600;">Payment Transactions Ledger</h3>
+            <span style="font-size:13px; color:var(--text-muted);">Real-time settlement history</span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Payment Date</th>
+                  <th>Invoice #</th>
+                  <th>Client</th>
+                  <th>Method</th>
+                  <th>Reference #</th>
+                  <th>Notes</th>
+                  <th style="text-align: right;">Amount Paid</th>
+                </tr>
+              </thead>
+              <tbody id="payments-table-tbody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- ==========================================================================
+     MODALS
+     ========================================================================== -->
+
+<!-- 1. CREATE INVOICE MODAL -->
+<div class="modal-backdrop" id="modal-invoice">
+  <div class="modal-box modal-box-lg">
+    <div class="modal-header">
+      <h3>Create New Invoice</h3>
+      <button class="modal-close" onclick="closeModal('modal-invoice')">&times;</button>
+    </div>
+    <form id="form-new-invoice">
+      <div class="modal-body">
+        <!-- Client Selection & Dates -->
+        <div class="form-row">
+          <div class="form-group">
+            <label>Select Client *</label>
+            <div style="display:flex; gap:8px;">
+              <select id="inv-client-select" class="input-field" required>
+                <!-- Populated dynamically -->
+              </select>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="openModal('modal-client')" title="Quick Add Client">
+                <i class="fas fa-plus"></i>
+              </button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Payment Terms</label>
+            <select id="inv-payment-terms" class="input-field">
+              <option value="Net 30">Net 30 (30 days)</option>
+              <option value="Net 15">Net 15 (15 days)</option>
+              <option value="Due on Receipt">Due on Receipt</option>
+              <option value="Net 60">Net 60 (60 days)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Issue Date</label>
+            <input type="date" id="inv-issue-date" class="input-field" required>
+          </div>
+          <div class="form-group">
+            <label>Due Date *</label>
+            <input type="date" id="inv-due-date" class="input-field" required>
+          </div>
+        </div>
+
+        <!-- Line Items Section -->
+        <div style="margin-top: 6px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <label style="font-weight: 600; font-size: 13.5px; color: var(--text-main);">Line Items</label>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addInvoiceLineItem()">
+              <i class="fas fa-plus"></i> Add Line Item
+            </button>
+          </div>
+
+          <div class="table-responsive" style="border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+            <table class="items-builder-table">
+              <thead>
+                <tr>
+                  <th>Product / Description</th>
+                  <th>Qty</th>
+                  <th>Rate (<span class="app-currency">₹</span>)</th>
+                  <th>Tax %</th>
+                  <th>Disc %</th>
+                  <th style="text-align: right;">Amount</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="invoice-items-tbody">
+                <!-- Dynamically generated rows -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Calculation & Discount Section -->
+        <div style="display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; flex-wrap: wrap; margin-top: 10px;">
+          <div style="flex: 1; min-width: 250px;">
+            <div class="form-group">
+              <label>Discount Type & Value</label>
+              <div style="display: flex; gap: 8px;">
+                <select id="inv-discount-type" class="input-field" style="width: 140px;" onchange="calculateInvoiceModalTotals()">
+                  <option value="PERCENTAGE">Percentage (%)</option>
+                  <option value="FIXED">Fixed Amount</option>
+                </select>
+                <input type="number" id="inv-discount-val" class="input-field" value="0" min="0" step="any" oninput="calculateInvoiceModalTotals()">
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 12px;">
+              <label>Notes & Payment Instructions</label>
+              <textarea id="inv-notes" class="input-field" rows="3" placeholder="Payment terms, bank details, or thank you note..."></textarea>
+            </div>
+          </div>
+
+          <div class="invoice-summary-box">
+            <div class="summary-line">
+              <span>Subtotal:</span>
+              <strong id="modal-calc-subtotal">₹0.00</strong>
+            </div>
+            <div class="summary-line">
+              <span>Discount:</span>
+              <span id="modal-calc-discount" style="color:var(--danger);">-₹0.00</span>
+            </div>
+            <div class="summary-line">
+              <span>Taxes:</span>
+              <span id="modal-calc-tax">+₹0.00</span>
+            </div>
+            <div class="summary-line total">
+              <span>Total Amount:</span>
+              <strong id="modal-calc-total" style="color:var(--primary); font-size:16px;">₹0.00</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-invoice')">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Generate Invoice</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 2. RECORD PAYMENT MODAL -->
+<div class="modal-backdrop" id="modal-payment">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Record Payment</h3>
+      <button class="modal-close" onclick="closeModal('modal-payment')">&times;</button>
+    </div>
+    <form id="form-record-payment">
+      <input type="hidden" id="pay-invoice-id">
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Invoice Number</label>
+            <input type="text" id="pay-invoice-number" class="input-field" readonly>
+          </div>
+          <div class="form-group">
+            <label>Client</label>
+            <input type="text" id="pay-client-name" class="input-field" readonly>
+          </div>
+        </div>
+
+        <div style="background:var(--bg-muted); padding:12px 16px; border-radius:var(--radius-md); border:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:13px; color:var(--text-muted);">Current Balance Due:</span>
+          <strong id="pay-balance-due-text" style="font-size:17px; color:var(--warning-text);">₹0.00</strong>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Payment Amount (<span class="app-currency">₹</span>) *</label>
+            <input type="number" id="pay-amount" class="input-field" step="any" min="0.01" required>
+          </div>
+          <div class="form-group">
+            <label>Payment Date *</label>
+            <input type="date" id="pay-date" class="input-field" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Payment Method *</label>
+            <select id="pay-method" class="input-field" required>
+              <option value="UPI">UPI / Instant Transfer</option>
+              <option value="BANK_TRANSFER">Bank Wire / NEFT / RTGS</option>
+              <option value="CARD">Credit / Debit Card</option>
+              <option value="CASH">Cash</option>
+              <option value="CHEQUE">Cheque</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Reference / Transaction ID</label>
+            <input type="text" id="pay-ref" class="input-field" placeholder="e.g. UPI-928192837">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Notes</label>
+          <input type="text" id="pay-notes" class="input-field" placeholder="Optional notes">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-payment')">Cancel</button>
+        <button type="submit" class="btn btn-success"><i class="fas fa-check"></i> Submit Payment</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 3. ADD CLIENT MODAL -->
+<div class="modal-backdrop" id="modal-client">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Add New Client</h3>
+      <button class="modal-close" onclick="closeModal('modal-client')">&times;</button>
+    </div>
+    <form id="form-new-client">
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Client Name *</label>
+            <input type="text" id="client-name" class="input-field" placeholder="e.g., Rajesh Kumar" required>
+          </div>
+          <div class="form-group">
+            <label>Company / Organization Name</label>
+            <input type="text" id="client-company" class="input-field" placeholder="e.g., Apex Technologies Pvt Ltd">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" id="client-email" class="input-field" placeholder="rajesh@apextech.in">
+          </div>
+          <div class="form-group">
+            <label>Phone Number</label>
+            <input type="text" id="client-phone" class="input-field" placeholder="+91 98765 00000">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>GSTIN / Tax Identification / PAN</label>
+          <input type="text" id="client-tax-id" class="input-field" placeholder="e.g. 07AAAAA0000A1Z5">
+        </div>
+
+        <div class="form-group">
+          <label>Billing Address</label>
+          <textarea id="client-address" class="input-field" rows="2" placeholder="Building, Street, City, State, PIN Code"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-client')">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Client</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 4. ADD PRODUCT MODAL -->
+<div class="modal-backdrop" id="modal-product">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Add Product or Service</h3>
+      <button class="modal-close" onclick="closeModal('modal-product')">&times;</button>
+    </div>
+    <form id="form-new-product">
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Item / Service Name *</label>
+            <input type="text" id="prod-name" class="input-field" placeholder="e.g., Cloud Architecture Consulting" required>
+          </div>
+          <div class="form-group">
+            <label>SKU / Item Code</label>
+            <input type="text" id="prod-sku" class="input-field" placeholder="e.g., SRV-CLOUD-01">
+          </div>
+        </div>
+
+        <div class="form-row-3">
+          <div class="form-group">
+            <label>Unit Price (<span class="app-currency">₹</span>) *</label>
+            <input type="number" id="prod-price" class="input-field" step="any" min="0" required>
+          </div>
+          <div class="form-group">
+            <label>Tax / GST Rate (%)</label>
+            <input type="number" id="prod-tax" class="input-field" step="any" min="0" max="100" value="18">
+          </div>
+          <div class="form-group">
+            <label>Unit</label>
+            <input type="text" id="prod-unit" class="input-field" value="item" placeholder="item, hr, month">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="prod-desc" class="input-field" rows="2" placeholder="Brief scope description..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-product')">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Item</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 5. INVOICE DETAILS MODAL -->
+<div class="modal-backdrop" id="modal-invoice-details">
+  <div class="modal-box modal-box-lg">
+    <div class="modal-header">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <h3>Invoice <span id="detail-inv-num"></span></h3>
+        <span id="detail-status-badge"></span>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-invoice-details')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row" style="background:var(--bg-muted); padding:16px; border-radius:var(--radius-md); border:1px solid var(--border-color);">
+        <div>
+          <span style="font-size:11px; color:var(--text-muted); text-transform:uppercase; font-weight:600;">Billed To:</span>
+          <h4 id="detail-client-name" style="font-size:15px; margin:4px 0; color:var(--text-main);"></h4>
+          <div id="detail-client-comp" style="font-size:13px; color:var(--text-muted);"></div>
+          <div id="detail-client-email" style="font-size:13px; color:var(--text-muted);"></div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:13px; margin-bottom:4px;">Issued: <strong id="detail-issue-date"></strong></div>
+          <div style="font-size:13px; margin-bottom:4px;">Due: <strong id="detail-due-date"></strong></div>
+          <div style="font-size:13px;">Terms: <strong id="detail-terms"></strong></div>
+        </div>
+      </div>
+
+      <!-- Itemized Table -->
+      <div class="table-responsive" style="border: 1px solid var(--border-color); border-radius:var(--radius-md);">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Qty</th>
+              <th>Unit Price</th>
+              <th>Tax %</th>
+              <th>Disc %</th>
+              <th style="text-align:right;">Line Total</th>
+            </tr>
+          </thead>
+          <tbody id="detail-items-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Financial Totals -->
+      <div style="display:flex; justify-content:flex-end;">
+        <div class="invoice-summary-box">
+          <div class="summary-line">
+            <span>Subtotal:</span>
+            <strong id="detail-subtotal"></strong>
+          </div>
+          <div class="summary-line">
+            <span>Discount:</span>
+            <span id="detail-discount" style="color:var(--danger);"></span>
+          </div>
+          <div class="summary-line">
+            <span>Taxes:</span>
+            <span id="detail-tax"></span>
+          </div>
+          <div class="summary-line total">
+            <span>Total:</span>
+            <strong id="detail-total"></strong>
+          </div>
+          <div class="summary-line">
+            <span>Paid Amount:</span>
+            <span id="detail-paid" style="color:var(--success-text); font-weight:600;"></span>
+          </div>
+          <div class="summary-line" style="border-top:1px solid var(--border-color); padding-top:6px;">
+            <span>Balance Due:</span>
+            <strong id="detail-balance" style="color:var(--warning-text); font-size:15px;"></strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment History -->
+      <div>
+        <h4 style="font-size:14px; margin-bottom:8px; color:var(--text-main);">Payments Received</h4>
+        <div id="detail-payments-container"></div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <a id="detail-print-btn" href="#" target="_blank" class="btn btn-secondary">
+        <i class="fas fa-print"></i> <span>Print / Save PDF</span>
+      </a>
+      <button type="button" class="btn btn-primary" onclick="closeModal('modal-invoice-details')">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- 6. CONFIRMATION DIALOG MODAL -->
+<div class="modal-backdrop" id="modal-confirm">
+  <div class="modal-box confirm-dialog-box">
+    <div id="confirm-icon-box" class="confirm-icon-wrap confirm-icon-danger">
+      <i id="confirm-icon" class="fas fa-trash-alt"></i>
+    </div>
+    <h3 id="confirm-title" class="confirm-title">Are you sure?</h3>
+    <p id="confirm-message" class="confirm-message">This action cannot be undone.</p>
+    <div class="confirm-actions">
+      <button type="button" class="btn btn-secondary" onclick="closeModal('modal-confirm')">Cancel</button>
+      <button type="button" id="confirm-action-btn" class="btn btn-danger">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Application Controller Script -->
+<script src="/static/js/app.js"></script>
+</body>
+</html>
